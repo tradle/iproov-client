@@ -1,0 +1,26 @@
+{
+  "name": "@tradle/iproov-client",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/tradle/iproov-client",
+  "author": "Mark Vayngrib <mark@tradle.io>",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^3.19.0",
+    "husky": "^0.13.3",
+    "tape": "^4.6.3"
+  },
+  "scripts": {
+    "test": "node test",
+    "lint": "eslint --quiet --ignore-path .gitignore .",
+    "prepush": "npm test"
+  },
+  "dependencies": {
+    "bluebird": "^3.5.0",
+    "debug": "^2.6.6",
+    "node-rest-client": "^3.1.0",
+    "object.pick": "^1.2.0",
+    "typeforce": "^1.11.1",
+    "xtend": "^4.0.1"
+  }
+}
