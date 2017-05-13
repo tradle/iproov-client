@@ -1,45 +1,52 @@
+const request = require('superagent')
 const querystring = require('querystring')
-const { Promise } = require('./utils')
+const { Promise, co } = require('./utils')
 const noop = () => {}
 const FIELD_MAP = {
   apiKey: 'api_key',
-  secret: 'secret',
-  userId: 'user_id',
-  token: 'token',
-  type: 'type'
+  userId: 'user_id'
 }
 
+const headers = {
+  'Content-Type': 'application/json',
+  'Accept': 'application/json'
+}
+
+const BASE_URL = 'https://secure.iproov.me/api/v2'
+
 module.exports = {
-  post: function post ({ client, base, path, data, validateResponse=noop }) {
+  post: co(function* post ({ client, path, data, validateResponse=noop }) {
     data = toIProovFields(data)
-    return new Promise((resolve, reject) => {
-      client.post(`${base}/${path}`, {
-        data,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        }
-      }, responseProcessor({ resolve, reject, validateResponse }))
-    })
-  },
-  get: function get ({ client, base, path, data, validateResponse=noop }) {
+    path = stripLeadingSlashes(path)
+    const req = request
+      .post(`${BASE_URL}/${path}`)
+      .send(data)
+      .set(headers)
+
+    const result = yield sendRequest({ req, validateResponse })
+    return normalizeResult(result)
+  }),
+  get: co(function* get ({ client, path, data, validateResponse=noop }) {
     let qs = ''
     if (data) {
       data = toIProovFields(data)
       qs = '?' + querystring.stringify(data)
     }
 
-    return new Promise((resolve, reject) => {
-      client.get(`${base}/${path}${qs}`, responseProcessor({ resolve, reject, validateResponse }))
-    })
-  }
+    path = stripLeadingSlashes(path)
+    const req = request.get(`${BASE_URL}/${path}${qs}`)
+    return yield sendRequest({ req, validateResponse })
+  })
 }
 
 function toIProovFields (fields) {
   const translated = {}
   for (let field in fields) {
     if (field in FIELD_MAP) {
-      translated[field] = FIELD_MAP[field]
+      let iProovField = FIELD_MAP[field]
+      translated[iProovField] = fields[field]
+    } else {
+      translated[field] = fields[field]
     }
   }
 
@@ -54,20 +61,59 @@ function toError (data, response) {
   return e
 }
 
-function responseProcessor ({ resolve, reject, validateResponse }) {
-  return function processResponse (data, response) {
-    if (response.statusCode >= 300) {
-      return reject(toError(data, response))
+// function responseProcessor ({ resolve, reject, validateResponse }) {
+//   return function processResponse (data, response) {
+//     if (response.statusCode >= 300) {
+//       return reject(toError(data, response))
+//     }
+
+//   }
+// }
+
+function stripLeadingSlashes (str) {
+  return str.replace(/^\/+/, '')
+}
+
+const sendRequest = co(function* ({ req, validateResponse=noop }) {
+  let res
+  try {
+    res = yield req
+  } catch (err) {
+    if (err.response) {
+      err = errorFromResponse(err.response)
     }
 
-    try {
-      validateResponse(data)
-    } catch (err) {
-      err.message = 'Invalid response format: ' + err.message
-      err.body = data
-      return reject(err)
-    }
-
-    resolve(data)
+    throw err
   }
+
+  const { ok, body } = res
+  if (!ok) {
+    throw errorFromResponse(res)
+  }
+
+  try {
+    validateResponse(body)
+  } catch (err) {
+    err.message = 'Invalid response format: ' + err.message
+    err.body = body
+    throw err
+  }
+
+  return body
+})
+
+function errorFromResponse (res) {
+  const { body={}, text, status } = res
+  const err = new Error(text)
+  err.body = body.error || body
+  err.status = status
+  return err
+}
+
+function normalizeResult (result) {
+  if (result.frame) {
+    result.frame = 'data:image/png;base64,' + result.frame
+  }
+
+  return result
 }

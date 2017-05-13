@@ -1,3 +1,4 @@
+const IP = require('ip')
 const { typeforce } = require('./utils')
 const CLAIM_TYPES = ['enrol', 'verify']
 const USER_RESPONSE_STATUS = ['active', 'inactive', 'suspended']
@@ -8,7 +9,9 @@ const fields = {
   secret,
   userId,
   token,
-  type: claimType
+  type: claimType,
+  ip,
+  client: typeforce.String
 }
 
 const authTokenResponse = {
@@ -53,7 +56,7 @@ const invalidateClaimResponse = {
 const pushResultResponse = {
   state: typeforce.String,
   passed: typeforce.maybe(typeforce.Boolean),
-  token: typeforce.maybed(typeforce.String)
+  token: typeforce.maybe(typeforce.String)
 }
 
 const pushStartResponse = {
@@ -104,4 +107,8 @@ function claimType (str) {
 
 function userResponseStatus (str) {
   return USER_RESPONSE_STATUS.indexOf(str) !== -1
+}
+
+function ip (val) {
+  return typeof val === 'string' && IP.isV4Format(val) || IP.isV6Format(val)
 }
